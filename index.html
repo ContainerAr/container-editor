@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Editor Revista Container</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Roboto:wght@300;400;500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<style>
+/* Layout: una columna de trabajo (máx. 760px) con una barra de acciones fija abajo, pensada para el celular */
+:root {
+  --rojo: #FB000E;
+  --rojo-osc: #c4000b;
+  --tinta: #1b1414;
+  --suave: #6d6262;
+  --fondo: #f6f3f2;
+  --papel: #ffffff;
+  --linea: #e4dddc;
+  --ok: #178a46;
+  --prov: #d98a00;
+  --pend: #7c7474;
+  --display: "Oswald", "Arial Narrow", Arial, sans-serif;
+  --texto: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tinta: #f2eded; --suave: #b3a9a9; --fondo: #161212; --papel: #211b1b; --linea: #3a3131;
+    --ok: #3cc477; --prov: #f0a92a; --pend: #a39a9a; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--fondo); color: var(--tinta); font: 400 15px/1.5 var(--texto);
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+}
+header.barra {
+  background: var(--rojo); color: #fff;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+header.barra h1 { font: 600 20px/1 var(--display); letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+header.barra h1 span { font-weight: 500; opacity: .85; }
+header.barra button { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.6); }
+main { max-width: 760px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; }
+section.caja { background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+section.caja > h2 { font: 600 17px/1.2 var(--display); text-transform: uppercase; letter-spacing: .04em; margin: 0; display: flex; align-items: center; gap: 10px; }
+section.caja > h2::before { content: ""; width: 6px; height: 18px; background: var(--rojo); display: inline-block; }
+label { display: grid; gap: 4px; font-size: 13px; font-weight: 500; color: var(--suave); min-width: 0; }
+input[type=text], input[type=url], input[type=password], input[type=number], textarea, select {
+  font: 400 15px/1.45 var(--texto); color: var(--tinta); background: var(--fondo);
+  border: 1px solid var(--linea); border-radius: 8px; padding: 9px 11px; width: 100%;
+}
+textarea { resize: vertical; min-height: 84px; }
+textarea.titulo { min-height: 58px; font-family: var(--display); font-size: 18px; }
+input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--rojo); outline-offset: 1px; }
+.fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.fila > * { flex: 1 1 160px; min-width: 0; }
+button {
+  font: 500 14px/1 var(--texto); border-radius: 8px; padding: 10px 14px; cursor: pointer;
+  border: 1px solid var(--linea); background: var(--papel); color: var(--tinta);
+}
+button.primario { background: var(--rojo); border-color: var(--rojo); color: #fff; }
+button.primario:hover { background: var(--rojo-osc); }
+button.chico { padding: 6px 10px; font-size: 13px; }
+button:disabled { opacity: .5; cursor: default; }
+.ayuda { font-size: 13px; color: var(--suave); margin: 0; }
+.web { font-size: 13px; color: var(--suave); background: var(--fondo); border-left: 3px solid var(--linea); padding: 6px 10px; border-radius: 0 6px 6px 0; white-space: pre-wrap; }
+.nota { border: 1px solid var(--linea); border-radius: 10px; padding: 12px; display: grid; gap: 10px; background: var(--papel); }
+.nota .cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nota .num { font: 600 15px/1 var(--display); background: var(--tinta); color: var(--papel); border-radius: 6px; padding: 5px 8px; }
+.nota .cab .esp { flex: 1; }
+.nota.pendiente { border-style: dashed; }
+.chip { font: 600 11px/1 var(--texto); text-transform: uppercase; letter-spacing: .06em; padding: 5px 8px; border-radius: 99px; color: #fff; }
+.chip.ok { background: var(--ok); } .chip.provisorio { background: var(--prov); } .chip.pendiente { background: var(--pend); }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tinta); font-weight: 400; }
+.archivo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.archivo select { flex: 1 1 200px; }
+.archivo img { width: 54px; height: 54px; object-fit: cover; border-radius: 6px; border: 1px solid var(--linea); }
+#acciones {
+  position: fixed; left: 0; right: 0; bottom: 0; background: var(--papel); border-top: 1px solid var(--linea);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; z-index: 5;
+}
+#estado { font-size: 14px; }
+#estado .linea { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--linea); }
+#estado .linea:last-child { border-bottom: 0; }
+#estado .n { font: 600 14px/1 var(--display); min-width: 2.2em; font-variant-numeric: tabular-nums; }
+#mapa { width: 100%; border-radius: 8px; border: 1px solid var(--linea); }
+.aviso { background: #fff4d6; color: #5a4300; border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+@media (prefers-color-scheme: dark) { .aviso { background: #3b3014; color: #f5dc95; } }
+.error { background: #ffe3e3; color: #7d0006; border-radius: 8px; padding: 10px 12px; font-size: 14px; white-space: pre-wrap; }
+@media (prefers-color-scheme: dark) { .error { background: #4a1316; color: #ffc9cc; } }
+.progreso { display: flex; align-items: center; gap: 10px; }
+.girador { width: 18px; height: 18px; border: 3px solid var(--linea); border-top-color: var(--rojo); border-radius: 50%; animation: g 1s linear infinite; }
+@keyframes g { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .girador { animation: none; } }
+a { color: var(--rojo); }
+</style>
+</head>
+<body>
+<header class="barra">
+  <h1>Container <span>· editor de la revista</span></h1>
+  <button type="button" id="btnClave" class="chico">Clave</button>
+</header>
+
+<main id="app">
+  <section class="caja" id="cajaClave" hidden>
+    <h2>Clave de GitHub</h2>
+    <p class="ayuda">El editor guarda la revista en el repo <b>ContainerAr/container-notas</b> y le pide a GitHub que la arme. Necesita una clave (token) con permiso sobre ese repo. Se guarda solo en este navegador.</p>
+    <label for="token">Token de GitHub<input type="password" id="token" autocomplete="off" placeholder="github_pat_…"></label>
+    <div class="fila"><button type="button" class="primario" id="btnGuardarClave">Guardar clave</button></div>
+  </section>
+
+  <section class="caja" id="cajaEdicion">
+    <h2>Edición</h2>
+    <div class="fila">
+      <label for="selEdicion">Abrir edición<select id="selEdicion"></select></label>
+      <button type="button" id="btnNueva">Nueva edición</button>
+    </div>
+    <div class="fila">
+      <label for="numero">Número<input type="number" id="numero"></label>
+      <label for="fecha">Fecha (dd-mm-aaaa)<input type="text" id="fecha" placeholder="25-10-2026"></label>
+    </div>
+    <p class="ayuda" id="infoEdicion"></p>
+  </section>
+
+  <section class="caja" id="cajaTapa">
+    <h2>Tapa</h2>
+    <div class="archivo" id="archTapa"></div>
+    <label for="tapaTitulo">Título de tapa (cada renglón es una línea)<textarea id="tapaTitulo" class="titulo" rows="2"></textarea></label>
+    <div class="fila">
+      <label for="tapaVolanta">Palabra clave (volanta)<input type="text" id="tapaVolanta"></label>
+      <label for="tapaZoom">Zoom de la ilustración<input type="number" id="tapaZoom" step="0.05" min="1" max="1.6" placeholder="1"></label>
+    </div>
+    <label for="tapaBajada">Bajada de tapa<textarea id="tapaBajada" rows="4"></textarea></label>
+    <p class="ayuda">Zoom: 1 = como viene. 1.1 agranda la ilustración un 10% y baja un poco lo que está arriba.</p>
+  </section>
+
+  <section class="caja" id="cajaNotas">
+    <h2>Notas</h2>
+    <p class="ayuda">En orden. La segunda es la nota de tapa. Si dejás título o bajada vacíos, se usan los de la web. Los avisos se intercalan solos.</p>
+    <div id="listaNotas" style="display:grid;gap:12px"></div>
+    <div class="fila">
+      <button type="button" id="btnAgregarNota">Agregar nota</button>
+      <button type="button" id="btnAgregarPend">Agregar lugar pendiente</button>
+    </div>
+  </section>
+
+  <section class="caja" id="cajaAvisos">
+    <h2>Avisos</h2>
+    <label>Aviso de Toselli de esta semana<div class="archivo" id="archToselli"></div></label>
+    <div class="fila">
+      <label for="avisoFinal">Aviso del final
+        <select id="avisoFinal"><option value="">Automático (par Constable, impar Zofracor)</option><option value="constable">Constable</option><option value="zofracor">Zofracor</option></select>
+      </label>
+    </div>
+    <label>Gobierno de Córdoba (solo si cambia el del mes)<div class="archivo" id="archGobierno"></div></label>
+  </section>
+
+  <section class="caja" id="cajaSecre">
+    <h2>La secretaria y el cadete</h2>
+    <label for="secreTexto">Primera línea: título. Después, un diálogo por renglón empezando con guion. Va en negrita el que habla menos.<textarea id="secreTexto" rows="12"></textarea></label>
+  </section>
+
+  <section class="caja" id="cajaResultado">
+    <h2>Resultado</h2>
+    <div id="progreso"></div>
+    <div id="estado"><p class="ayuda">Todavía no se armó esta edición desde el editor.</p></div>
+    <div class="fila" id="descargas"></div>
+    <img id="mapa" alt="Mapa del borrador" hidden>
+  </section>
+</main>
+
+<div id="acciones">
+  <button type="button" id="btnGuardar">Guardar</button>
+  <button type="button" id="btnBorrador" class="primario">Ver borrador</button>
+  <button type="button" id="btnFinal">Generar final</button>
+  <label class="check" for="subirTapa"><input type="checkbox" id="subirTapa" checked> subir tapa a la web</label>
+</div>
+
+<script>
+const OWNER = "ContainerAr", REPO = "container-notas", WF = "revista.yml", BASE = "revista/ediciones";
+const $ = (id) => document.getElementById(id);
+const S = { token: "", ediciones: [], n: null, ed: null, archivos: [], web: {}, ultimoEstado: null };
+
+// ---------- GitHub ----------
+function leerClave() { try { return localStorage.getItem("container_gh_token") || ""; } catch (e) { return ""; } }
+function guardarClave(t) { try { localStorage.setItem("container_gh_token", t); } catch (e) {} }
+async function gh(path, opts = {}) {
+  const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + path, {
+    ...opts,
+    headers: { "Authorization": "Bearer " + S.token, "Accept": opts.accept || "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) }
+  });
+  if (!r.ok && r.status !== 404) {
+    let msg = r.status + " " + r.statusText;
+    try { const j = await r.json(); if (j.message) msg = j.message; } catch (e) {}
+    if (r.status === 401) msg = "La clave de GitHub no sirve o venció. Tocá «Clave» y cargá una nueva.";
+    throw new Error(msg);
+  }
+  return r;
+}
+const enc = (p) => p.split("/").map(encodeURIComponent).join("/");
+async function listar(dir, ref = "main") {
+  const r = await gh("/contents/" + enc(dir) + "?ref=" + ref);
+  if (r.status === 404) return [];
+  return r.json();
+}
+async function leerTexto(path, ref = "main") {
+  const r = await gh("/contents/" + enc(path) + "?ref=" + ref, { accept: "application/vnd.github.raw" });
+  if (r.status === 404) return null;
+  return r.text();
+}
+async function leerBlob(path, ref = "main") {
+  const r = await gh("/contents/" + enc(path) + "?ref=" + ref, { accept: "application/vnd.github.raw" });
+  if (r.status === 404) return null;
+  return r.blob();
+}
+function b64DeTexto(t) { return btoa(unescape(encodeURIComponent(t))); }
+function b64DeArchivo(file) {
+  return new Promise((ok, mal) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.onerror = mal; fr.readAsDataURL(file); });
+}
+async function escribir(path, b64, mensaje) {
+  const actual = await gh("/contents/" + enc(path) + "?ref=main");
+  const sha = actual.status === 404 ? undefined : (await actual.json()).sha;
+  await gh("/contents/" + enc(path), { method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: mensaje, content: b64, sha, branch: "main" }) });
+}
+
+// ---------- utilidades ----------
+const nfc = (s) => (s || "").normalize("NFC");
+function nombreLimpio(n) {
+  const p = n.lastIndexOf("."); const ext = p > 0 ? n.slice(p).toLowerCase() : "";
+  let base = (p > 0 ? n.slice(0, p) : n).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9 _-]+/g, " ").trim().replace(/\s+/g, "-");
+  return (base || "imagen") + ext;
+}
+function proximoDomingo(fecha) {
+  const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(fecha || ""); if (!m) return "";
+  const d = new Date(+m[3], +m[2] - 1, +m[1] + 7);
+  return d.getDate() + "-" + (d.getMonth() + 1) + "-" + d.getFullYear();
+}
+function msg(el, texto, clase) { el.innerHTML = ""; if (!texto) return; const d = document.createElement("div"); d.className = clase; d.textContent = texto; el.append(d); }
+function esImagen(n) { return /\.(jpe?g|png|webp|pdf)$/i.test(n); }
+
+// ---------- archivos (selector + subir) ----------
+function selectorArchivo(cont, valor, alCambiar, opciones = {}) {
+  cont.innerHTML = "";
+  const sel = document.createElement("select");
+  const vacio = document.createElement("option"); vacio.value = ""; vacio.textContent = opciones.vacio || "(ninguno)"; sel.append(vacio);
+  S.archivos.filter((a) => esImagen(a.name)).forEach((a) => {
+    const o = document.createElement("option"); o.value = a.name; o.textContent = nfc(a.name); sel.append(o);
+  });
+  if (valor && ![...sel.options].some((o) => nfc(o.value) === nfc(valor))) {
+    const o = document.createElement("option"); o.value = valor; o.textContent = valor + " (no está en la carpeta)"; sel.append(o);
+  }
+  [...sel.options].forEach((o) => { if (nfc(o.value) === nfc(valor || "")) o.selected = true; });
+  const img = document.createElement("img"); img.alt = ""; img.hidden = true;
+  const verMini = async () => {
+    img.hidden = true;
+    if (!sel.value || !/\.(jpe?g|png|webp)$/i.test(sel.value)) return;
+    try { const b = await leerBlob(BASE + "/" + S.n + "/" + sel.value); if (b) { img.src = URL.createObjectURL(b); img.hidden = false; } } catch (e) {}
+  };
+  sel.addEventListener("change", () => { alCambiar(sel.value); verMini(); });
+  const subir = document.createElement("button"); subir.type = "button"; subir.className = "chico"; subir.textContent = "Subir imagen";
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*,application/pdf"; inp.hidden = true;
+  subir.addEventListener("click", () => inp.click());
+  inp.addEventListener("change", async () => {
+    const f = inp.files[0]; if (!f) return;
+    if (f.size > 20e6) { alert("La imagen pesa más de 20 MB."); return; }
+    const nombre = nombreLimpio(f.name);
+    subir.disabled = true; subir.textContent = "Subiendo…";
+    try {
+      await escribir(BASE + "/" + S.n + "/" + nombre, await b64DeArchivo(f), "Editor: imagen " + nombre + " (edición " + S.n + ")");
+      S.archivos.push({ name: nombre });
+      alCambiar(nombre);
+      selectorArchivo(cont, nombre, alCambiar, opciones);
+    } catch (e) { subir.disabled = false; subir.textContent = "Subir imagen"; msg($("progreso"), "No se pudo subir la imagen: " + e.message, "error"); }
+  });
+  cont.append(img, sel, subir, inp);
+  verMini();
+}
+
+// ---------- notas ----------
+function normalizarNota(n) {
+  if (typeof n === "string") return { url: n };
+  if (n && typeof n.nota === "string") return { ...n, url: n.nota, nota: undefined };
+  if (n && n.nota && typeof n.nota === "object") return { ...n.nota };
+  return { ...(n || {}) };
+}
+function notaParaGuardar(n) {
+  const o = {};
+  if (n.pendiente !== undefined && !n.url) return { pendiente: n.pendiente || "Nota" };
+  for (const [k, v] of Object.entries(n)) {
+    if (v === undefined || v === null || v === "" || v === false) continue;
+    if (k === "pendiente") continue;
+    o[k] = v;
+  }
+  const claves = Object.keys(o);
+  if (claves.length === 1 && claves[0] === "url") return o.url;
+  return o;
+}
+function pintarNotas() {
+  const cont = $("listaNotas"); cont.innerHTML = "";
+  S.ed.notas.forEach((n, i) => cont.append(tarjetaNota(n, i)));
+}
+function tarjetaNota(n, i) {
+  const d = document.createElement("div"); d.className = "nota" + (n.pendiente !== undefined && !n.url ? " pendiente" : "");
+  const cab = document.createElement("div"); cab.className = "cab";
+  const num = document.createElement("span"); num.className = "num"; num.textContent = "Nota " + (i + 1) + (i === 1 ? " · tapa" : "");
+  const esp = document.createElement("span"); esp.className = "esp";
+  const mk = (t, f, dis) => { const b = document.createElement("button"); b.type = "button"; b.className = "chico"; b.textContent = t; b.disabled = !!dis; b.addEventListener("click", f); return b; };
+  cab.append(num, esp,
+    mk("↑", () => { [S.ed.notas[i - 1], S.ed.notas[i]] = [S.ed.notas[i], S.ed.notas[i - 1]]; pintarNotas(); }, i === 0),
+    mk("↓", () => { [S.ed.notas[i + 1], S.ed.notas[i]] = [S.ed.notas[i], S.ed.notas[i + 1]]; pintarNotas(); }, i === S.ed.notas.length - 1),
+    mk("Quitar", () => { S.ed.notas.splice(i, 1); pintarNotas(); }));
+  d.append(cab);
+  const campo = (etq, id, valor, alCambiar, tipo = "input", ph = "") => {
+    const l = document.createElement("label"); l.htmlFor = id; l.textContent = etq;
+    const c = document.createElement(tipo === "input" ? "input" : "textarea");
+    if (tipo === "input") c.type = "text"; else { c.rows = tipo === "titulo" ? 2 : 5; if (tipo === "titulo") c.className = "titulo"; }
+    c.id = id; c.value = valor || ""; c.placeholder = ph;
+    c.addEventListener("input", () => alCambiar(c.value));
+    l.append(c); return l;
+  };
+  if (n.pendiente !== undefined && !n.url) {
+    d.append(campo("Qué va acá (queda en gris hasta que llegue)", "pend" + i, n.pendiente, (v) => { n.pendiente = v; }));
+    d.append(campo("Link de la nota (cuando llegue)", "url" + i, "", (v) => { n.url = v.trim() || undefined; }, "input", "https://revistacontainer.com.ar/nota/…"));
+    return d;
+  }
+  const w = S.web[n.url] || {};
+  d.append(campo("Link de la nota en la web", "url" + i, n.url, (v) => { n.url = v.trim(); }, "input", "https://revistacontainer.com.ar/nota/…"));
+  d.append(campo("Título para la revista (vacío = el de la web)", "tit" + i, n.titulo, (v) => { n.titulo = v; }, "titulo", w.titulo_web || ""));
+  if (w.titulo_web) { const p = document.createElement("div"); p.className = "web"; p.textContent = "En la web: " + w.titulo_web; d.append(p); }
+  d.append(campo("Bajada para la revista (vacío = la de la web)", "baj" + i, n.bajada, (v) => { n.bajada = v; }, "textarea", w.bajada_web || ""));
+  if (w.bajada_origen && w.bajada_origen.startsWith("INICIO")) {
+    const p = document.createElement("div"); p.className = "aviso"; p.textContent = "Esta nota no tiene bajada en la web: si la dejás vacía sale en rojo con el comienzo de la nota."; d.append(p);
+  }
+  const fila = document.createElement("div"); fila.className = "fila";
+  fila.append(campo("Firma (vacío = la de la web)", "aut" + i, n.autor, (v) => { n.autor = v || undefined; }, "input", w.autor_web || "sin firma"));
+  d.append(fila);
+  const lf = document.createElement("label"); lf.textContent = "Foto (vacío = la de la web)";
+  const af = document.createElement("div"); af.className = "archivo"; lf.append(af); d.append(lf);
+  selectorArchivo(af, n.foto, (v) => { n.foto = v || undefined; }, { vacio: "(la de la web)" });
+  const ch = document.createElement("div"); ch.className = "fila";
+  const casilla = (txt, clave) => { const l = document.createElement("label"); l.className = "check"; const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!n[clave]; c.addEventListener("change", () => { n[clave] = c.checked || undefined; }); l.append(c, " " + txt); return l; };
+  ch.append(casilla("Título acortado (marcar para revisar)", "titulo_acortado"));
+  d.append(ch);
+  return d;
+}
+
+// ---------- cargar / armar el formulario ----------
+async function cargarEdiciones() {
+  const lista = await listar(BASE);
+  S.ediciones = lista.filter((x) => x.type === "dir").map((x) => x.name).sort((a, b) => +a - +b);
+  const sel = $("selEdicion"); sel.innerHTML = "";
+  S.ediciones.slice().reverse().forEach((n) => { const o = document.createElement("option"); o.value = n; o.textContent = "N° " + n; sel.append(o); });
+}
+async function abrir(n) {
+  S.n = n; msg($("progreso"), ""); $("mapa").hidden = true; $("descargas").innerHTML = "";
+  $("infoEdicion").textContent = "Cargando…";
+  S.archivos = (await listar(BASE + "/" + n)).filter((x) => x.type === "file");
+  const txt = await leerTexto(BASE + "/" + n + "/edicion.yaml");
+  const ed = txt ? jsyaml.load(txt) : {};
+  if (ed.paginas) { $("infoEdicion").textContent = "Esta edición usa un orden manual de páginas: editala con Claude."; }
+  ed.tapa = ed.tapa || {}; ed.avisos = ed.avisos || {}; ed.notas = (ed.notas || []).map(normalizarNota);
+  S.ed = ed;
+  $("numero").value = ed.numero || n; $("fecha").value = ed.fecha || "";
+  $("tapaTitulo").value = ed.tapa.titulo || ""; $("tapaVolanta").value = ed.tapa.volanta || "";
+  $("tapaBajada").value = ed.tapa.bajada || ""; $("tapaZoom").value = ed.tapa.zoom || "";
+  selectorArchivo($("archTapa"), ed.tapa.imagen, (v) => { S.ed.tapa.imagen = v || null; }, { vacio: "(ilustración pendiente)" });
+  const tos = typeof ed.avisos.toselli === "object" && ed.avisos.toselli ? ed.avisos.toselli.archivo : ed.avisos.toselli;
+  selectorArchivo($("archToselli"), tos, (v) => { S.ed.avisos.toselli = v || undefined; }, { vacio: "(pendiente)" });
+  const gob = typeof ed.avisos.gobierno === "object" && ed.avisos.gobierno ? ed.avisos.gobierno.archivo : ed.avisos.gobierno;
+  selectorArchivo($("archGobierno"), gob, (v) => { S.ed.avisos.gobierno = v || undefined; }, { vacio: "(el del mes, sin cambios)" });
+  $("avisoFinal").value = ed.avisos.final_id || "";
+  $("secreTexto").value = secreATexto(ed.secretaria);
+  S.web = {};
+  await mostrarResultado(false);
+  pintarNotas();
+  $("infoEdicion").textContent = "Edición " + n + " · " + S.archivos.length + " archivos en la carpeta.";
+}
+function secreATexto(s) {
+  if (!s) return "";
+  if (s.texto) return (s.titulo ? s.titulo + "\n" : "") + s.texto.trim();
+  return "";
+}
+function leerFormulario() {
+  const ed = S.ed;
+  ed.numero = +$("numero").value || ed.numero; ed.fecha = $("fecha").value.trim();
+  ed.tapa.titulo = $("tapaTitulo").value.replace(/\s+$/g, ""); ed.tapa.volanta = $("tapaVolanta").value.trim();
+  ed.tapa.bajada = $("tapaBajada").value.trim();
+  const z = parseFloat($("tapaZoom").value); if (z && z !== 1) ed.tapa.zoom = z; else delete ed.tapa.zoom;
+  const f = $("avisoFinal").value; if (f) ed.avisos.final_id = f; else delete ed.avisos.final_id;
+  const st = $("secreTexto").value.trim(); if (st) ed.secretaria = { texto: st + "\n" }; else delete ed.secretaria;
+  const out = { numero: ed.numero, fecha: ed.fecha };
+  for (const [k, v] of Object.entries(ed)) if (!["numero", "fecha", "notas"].includes(k)) out[k] = v;
+  if (!out.tapa.imagen) out.tapa.imagen = null;
+  for (const k of Object.keys(out.tapa)) if (out.tapa[k] === "" ) delete out.tapa[k];
+  Object.keys(out.avisos).forEach((k) => { if (out.avisos[k] === undefined) delete out.avisos[k]; });
+  out.notas = ed.notas.filter((n) => n.url || n.pendiente !== undefined).map(notaParaGuardar);
+  return out;
+}
+async function guardar() {
+  const out = leerFormulario();
+  const txt = "# Edición armada con el editor web de la revista\n" + jsyaml.dump(out, { lineWidth: -1, noRefs: true });
+  await escribir(BASE + "/" + S.n + "/edicion.yaml", b64DeTexto(txt), "Editor: edición " + S.n);
+}
+
+// ---------- armar en GitHub ----------
+async function armar(modo) {
+  const p = $("progreso");
+  bloquear(true);
+  try {
+    msg(p, "Guardando…", "ayuda"); await guardar();
+    const pedido = Date.now().toString(36);
+    await gh("/actions/workflows/" + WF + "/dispatches", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "main", inputs: { edicion: String(S.n), modo, subir_tapa: String($("subirTapa").checked), pedido } }) });
+    p.innerHTML = '<div class="progreso"><div class="girador"></div><span id="txtProg">GitHub está armando la revista (tarda 2 o 3 minutos)…</span></div>';
+    const t0 = Date.now(); let run = null;
+    while (Date.now() - t0 < 15 * 60e3) {
+      await new Promise((r) => setTimeout(r, 8000));
+      const j = await (await gh("/actions/workflows/" + WF + "/runs?per_page=10&event=workflow_dispatch")).json();
+      run = (j.workflow_runs || []).find((r) => (r.display_title || "").includes(pedido));
+      const seg = Math.round((Date.now() - t0) / 1000);
+      const tp = document.getElementById("txtProg");
+      if (tp) tp.textContent = (run ? (run.status === "queued" ? "En cola…" : "Armando…") : "Esperando a GitHub…") + " " + seg + " s";
+      if (run && run.status === "completed") break;
+    }
+    if (!run || run.status !== "completed") throw new Error("GitHub tardó demasiado. Probá de nuevo en unos minutos.");
+    await mostrarResultado(true, run);
+  } catch (e) { msg(p, e.message, "error"); }
+  finally { bloquear(false); }
+}
+function bloquear(si) { ["btnGuardar", "btnBorrador", "btnFinal"].forEach((id) => { $(id).disabled = si; }); }
+
+async function mostrarResultado(recien, run) {
+  const est = $("estado"), p = $("progreso");
+  const txt = await leerTexto(S.n + "/estado.json", "salidas").catch(() => null);
+  const ped = await leerTexto(S.n + "/pedido.json", "salidas").catch(() => null);
+  const pedido = ped ? JSON.parse(ped) : null;
+  if (recien && pedido && pedido.resultado !== "success") {
+    const log = await leerTexto(S.n + "/log.txt", "salidas").catch(() => "");
+    const ult = (log || "").trim().split("\n").slice(-8).join("\n");
+    msg(p, "No se pudo armar la revista.\n" + ult, "error");
+    return;
+  }
+  if (recien && run && run.conclusion !== "success" && pedido && pedido.resultado === "success") {
+    msg(p, "La revista salió, pero no se pudo actualizar la tapa en la web.", "aviso");
+  } else if (recien) { msg(p, "Listo.", "ayuda"); }
+  if (!txt) { est.innerHTML = '<p class="ayuda">Todavía no se armó esta edición desde el editor.</p>'; return; }
+  const e = JSON.parse(txt); S.ultimoEstado = e;
+  (e.notas || []).forEach((n) => { S.web[n.url] = n; });
+  if (!recien) pintarNotas();
+  est.innerHTML = "";
+  const tit = document.createElement("p"); tit.className = "ayuda";
+  tit.textContent = (e.modo === "final" ? "Versión final" : "Borrador") + " · " + e.pdf + " · " + e.peso_mb + " MB";
+  est.append(tit);
+  (e.paginas || []).forEach((pg) => {
+    const l = document.createElement("div"); l.className = "linea";
+    const n = document.createElement("span"); n.className = "n"; n.textContent = pg.n;
+    const c = document.createElement("span"); c.className = "chip " + pg.estado; c.textContent = { ok: "lista", provisorio: "provisoria", pendiente: "pendiente" }[pg.estado];
+    const t = document.createElement("span"); t.textContent = pg.texto;
+    l.append(n, c, t); est.append(l);
+  });
+  (e.avisos || []).forEach((a) => { const d = document.createElement("div"); d.className = "aviso"; d.textContent = a; est.append(d); });
+  const des = $("descargas"); des.innerHTML = "";
+  const boton = (texto, ruta, nombre, tipo) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = texto; b.className = tipo === "pdf" ? "primario" : "";
+    b.addEventListener("click", async () => {
+      b.disabled = true; const ant = b.textContent; b.textContent = "Descargando…";
+      try {
+        const blob = await leerBlob(S.n + "/" + ruta, "salidas");
+        const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = nombre; a.target = "_blank";
+        document.body.append(a); a.click(); a.remove();
+      } catch (er) { msg($("progreso"), er.message, "error"); }
+      b.disabled = false; b.textContent = ant;
+    });
+    des.append(b);
+  };
+  boton("Abrir PDF", e.pdf, e.pdf, "pdf");
+  if (e.modo === "final") boton("Tapa para la web (JPG)", "TAPA WEB " + e.fecha + ".jpg", "TAPA WEB " + e.fecha + ".jpg");
+  if (e.modo === "borrador") {
+    const blob = await leerBlob(S.n + "/BORRADOR mapa " + e.fecha + ".png", "salidas").catch(() => null);
+    if (blob) { $("mapa").src = URL.createObjectURL(blob); $("mapa").hidden = false; }
+  } else { $("mapa").hidden = true; }
+}
+
+// ---------- nueva edición ----------
+async function nueva() {
+  const ult = S.ediciones[S.ediciones.length - 1];
+  let fecha = "";
+  if (ult) { const t = await leerTexto(BASE + "/" + ult + "/edicion.yaml"); try { fecha = proximoDomingo(jsyaml.load(t).fecha); } catch (e) {} }
+  const n = String((+ult || 0) + 1);
+  const ed = { numero: +n, fecha, tapa: { imagen: null }, avisos: {},
+    notas: [{ pendiente: "Columna de Walter" }, { pendiente: "Nota de tapa" }, { pendiente: "Columna de Nancy" },
+            { pendiente: "Nota" }, { pendiente: "Nota" }, { pendiente: "Nota" }, { pendiente: "Nota" }] };
+  const txt = "# Edición armada con el editor web de la revista\n" + jsyaml.dump(ed, { lineWidth: -1 });
+  await escribir(BASE + "/" + n + "/edicion.yaml", b64DeTexto(txt), "Editor: nueva edición " + n);
+  await cargarEdiciones(); $("selEdicion").value = n; await abrir(n);
+}
+
+// ---------- arranque ----------
+function pedirClave(si) { $("cajaClave").hidden = !si; }
+$("btnClave").addEventListener("click", () => { $("token").value = S.token; pedirClave($("cajaClave").hidden); });
+$("btnGuardarClave").addEventListener("click", async () => { S.token = $("token").value.trim(); guardarClave(S.token); pedirClave(false); iniciar(); });
+$("selEdicion").addEventListener("change", (e) => abrir(e.target.value).catch((er) => msg($("progreso"), er.message, "error")));
+$("btnNueva").addEventListener("click", () => nueva().catch((er) => msg($("progreso"), er.message, "error")));
+$("btnAgregarNota").addEventListener("click", () => { S.ed.notas.push({ url: "" }); pintarNotas(); });
+$("btnAgregarPend").addEventListener("click", () => { S.ed.notas.push({ pendiente: "Nota" }); pintarNotas(); });
+$("btnGuardar").addEventListener("click", async () => { bloquear(true); try { await guardar(); msg($("progreso"), "Guardado.", "ayuda"); } catch (e) { msg($("progreso"), e.message, "error"); } bloquear(false); });
+$("btnBorrador").addEventListener("click", () => armar("borrador"));
+$("btnFinal").addEventListener("click", () => armar("final"));
+
+async function iniciar() {
+  S.token = leerClave();
+  if (!S.token) { pedirClave(true); return; }
+  try {
+    await cargarEdiciones();
+    if (S.ediciones.length) { $("selEdicion").value = S.ediciones[S.ediciones.length - 1]; await abrir($("selEdicion").value); }
+  } catch (e) { msg($("progreso"), e.message, "error"); }
+}
+iniciar();
+</script>
+</body>
+</html>
