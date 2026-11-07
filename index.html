@@ -114,6 +114,13 @@ a { color: var(--rojo); }
     <div class="fila"><button type="button" class="primario" id="btnGuardarClave">Guardar clave</button></div>
   </section>
 
+  <section class="caja" id="cajaAcceso" hidden>
+    <h2>Entrar directo</h2>
+    <p class="ayuda">Este link ya trae la clave adentro: guardalo en favoritos o en la pantalla de inicio del celular (y en la Mac) y entrás siempre sin que te la pida. No lo compartas: quien lo tenga puede editar la revista.</p>
+    <label for="linkAcceso">Tu link de acceso<input type="text" id="linkAcceso" readonly></label>
+    <div class="fila"><button type="button" class="primario" id="btnCopiarLink">Copiar link</button><button type="button" id="btnCerrarAcceso">Listo, ya lo guardé</button></div>
+  </section>
+
   <section class="caja" id="cajaEdicion">
     <h2>Edición</h2>
     <div class="fila">
@@ -141,11 +148,12 @@ a { color: var(--rojo); }
 
   <section class="caja" id="cajaNotas">
     <h2>Notas</h2>
-    <p class="ayuda">En orden. La segunda es la nota de tapa. Si dejás título o bajada vacíos, se usan los de la web. Los avisos se intercalan solos.</p>
+    <p class="ayuda">En orden. La segunda es la nota de tapa. Título, bajada y firma se completan solos con lo que está en la web: corregí acá lo que quieras y la revista usa lo que quede escrito. Los avisos se intercalan solos.</p>
     <div id="listaNotas" style="display:grid;gap:12px"></div>
     <div class="fila">
       <button type="button" id="btnAgregarNota">Agregar nota</button>
       <button type="button" id="btnAgregarPend">Agregar lugar pendiente</button>
+      <button type="button" id="btnReleer">Volver a leer la web</button>
     </div>
   </section>
 
@@ -183,15 +191,27 @@ a { color: var(--rojo); }
 
 <script>
 const OWNER = "ContainerAr", REPO = "container-notas", WF = "revista.yml", BASE = "revista/ediciones";
+const WF_WEB = "notas-web.yml", WEB_JSON = "revista/web/notas.json";
 const $ = (id) => document.getElementById(id);
-const S = { token: "", ediciones: [], n: null, ed: null, archivos: [], web: {}, ultimoEstado: null };
+const S = { token: "", ediciones: [], n: null, ed: null, archivos: [], web: {}, leyendo: new Set(), tarjetas: [], ultimoEstado: null };
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ---------- GitHub ----------
+// ---------- clave y link de acceso directo ----------
 function leerClave() { try { return localStorage.getItem("container_gh_token") || ""; } catch (e) { return ""; } }
 function guardarClave(t) { try { localStorage.setItem("container_gh_token", t); } catch (e) {} }
+function claveDelLink() { const m = /(?:^#|&)clave=([^&]+)/.exec(location.hash); return m ? decodeURIComponent(m[1]) : ""; }
+function linkDirecto(t) { return location.origin + location.pathname + "#clave=" + encodeURIComponent(t); }
+function mostrarAcceso(forzar) {
+  if (!S.token) { $("cajaAcceso").hidden = true; return; }
+  let cerrado = false; try { cerrado = localStorage.getItem("container_link_guardado") === "1"; } catch (e) {}
+  $("linkAcceso").value = linkDirecto(S.token);
+  $("cajaAcceso").hidden = !forzar && (cerrado || !!claveDelLink());
+}
+
+// ---------- GitHub ----------
 async function gh(path, opts = {}) {
   const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + path, {
-    ...opts,
+    cache: "no-store", ...opts,
     headers: { "Authorization": "Bearer " + S.token, "Accept": opts.accept || "application/vnd.github+json",
                "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) }
   });
@@ -290,10 +310,22 @@ function normalizarNota(n) {
   if (n && n.nota && typeof n.nota === "object") return { ...n.nota };
   return { ...(n || {}) };
 }
-function notaParaGuardar(n) {
+// Lo que trae la web para una nota (lo que usa la revista si no se cambia nada)
+function deLaWeb(n) {
+  const w = S.web[n.url];
+  if (!w || w.error) return null;
+  return { titulo: w.titulo || "", bajada: w.bajada || w.resumen || "", autor: w.autor || "" };
+}
+const limpio = (s) => (s || "").replace(/\r/g, "").trim();
+function notaParaGuardar(n0) {
   const o = {};
-  if (n.pendiente !== undefined && !n.url) return { pendiente: n.pendiente || "Nota" };
+  if (n0.pendiente !== undefined && !n0.url) return { pendiente: n0.pendiente || "Nota" };
+  // Si el texto quedó igual al de la web no se guarda: así, si después lo corrigen en la web, la revista toma el nuevo
+  const n = { ...n0 }, w = deLaWeb(n0);
+  if (w) for (const k of ["titulo", "bajada", "autor"]) if (n[k] !== undefined && limpio(n[k]) === limpio(w[k])) delete n[k];
+  for (const k of ["titulo", "bajada", "autor"]) if (typeof n[k] === "string") n[k] = limpio(n[k]);
   for (const [k, v] of Object.entries(n)) {
+    if (k === "autor" && v === "") { o.autor = ""; continue; }   // firma vacía = sin firma
     if (v === undefined || v === null || v === "" || v === false) continue;
     if (k === "pendiente") continue;
     o[k] = v;
@@ -304,7 +336,37 @@ function notaParaGuardar(n) {
 }
 function pintarNotas() {
   const cont = $("listaNotas"); cont.innerHTML = "";
-  S.ed.notas.forEach((n, i) => cont.append(tarjetaNota(n, i)));
+  S.tarjetas = S.ed.notas.map((n, i) => tarjetaNota(n, i));
+  cont.append(...S.tarjetas);
+}
+function repintarNota(i) {
+  const vieja = S.tarjetas[i]; if (!vieja || !vieja.isConnected) return;
+  const nueva = tarjetaNota(S.ed.notas[i], i); vieja.replaceWith(nueva); S.tarjetas[i] = nueva;
+}
+function repintarUrls(urls) { S.ed.notas.forEach((n, i) => { if (n.url && urls.includes(n.url)) repintarNota(i); }); }
+
+// ---------- textos de la web (los lee una acción de GitHub: el navegador no puede leer la página directamente) ----------
+async function cargarWeb() {
+  const t = await leerTexto(WEB_JSON).catch(() => null);
+  if (t) { try { Object.assign(S.web, JSON.parse(t)); } catch (e) {} }
+}
+async function traerDeLaWeb(urls, forzar = false) {
+  urls = [...new Set(urls)].filter((u) => /^https?:\/\/\S+$/.test(u || "") && !S.leyendo.has(u) && (forzar || !S.web[u]));
+  if (!urls.length) return;
+  const antes = {}; urls.forEach((u) => { antes[u] = S.web[u] && S.web[u].leido; S.leyendo.add(u); });
+  repintarUrls(urls);
+  try {
+    await gh("/actions/workflows/" + WF_WEB + "/dispatches", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "main", inputs: { urls: urls.join(" "), pedido: Date.now().toString(36) } }) });
+    const t0 = Date.now();
+    while (Date.now() - t0 < 4 * 60e3) {
+      await esperar(6000);
+      await cargarWeb();
+      if (urls.every((u) => S.web[u] && S.web[u].leido && S.web[u].leido !== antes[u])) break;
+    }
+  } catch (e) { msg($("progreso"), "No se pudieron leer las notas de la web: " + e.message, "error"); }
+  urls.forEach((u) => S.leyendo.delete(u));
+  repintarUrls(urls);
 }
 function tarjetaNota(n, i) {
   const d = document.createElement("div"); d.className = "nota" + (n.pendiente !== undefined && !n.url ? " pendiente" : "");
@@ -325,22 +387,63 @@ function tarjetaNota(n, i) {
     c.addEventListener("input", () => alCambiar(c.value));
     l.append(c); return l;
   };
+  // Al pegar un link: la tarjeta pasa a ser nota y se traen título, bajada y firma de la web
+  const alPegarLink = (v) => {
+    const u = v.trim();
+    if (u === (n.url || "")) return;
+    n.url = u || undefined;
+    if (u) { delete n.pendiente; delete n.titulo; delete n.bajada; delete n.autor; }
+    repintarNota(i);
+    if (u) traerDeLaWeb([u]);
+  };
+  const campoLink = (etq, valor) => {
+    const l = campo(etq, "url" + i, valor, () => {}, "input", "https://revistacontainer.com.ar/nota/…");
+    l.querySelector("input").addEventListener("change", (e) => alPegarLink(e.target.value));
+    return l;
+  };
   if (n.pendiente !== undefined && !n.url) {
     d.append(campo("Qué va acá (queda en gris hasta que llegue)", "pend" + i, n.pendiente, (v) => { n.pendiente = v; }));
-    d.append(campo("Link de la nota (cuando llegue)", "url" + i, "", (v) => { n.url = v.trim() || undefined; }, "input", "https://revistacontainer.com.ar/nota/…"));
+    d.append(campoLink("Link de la nota (cuando llegue)", ""));
     return d;
   }
-  const w = S.web[n.url] || {};
-  d.append(campo("Link de la nota en la web", "url" + i, n.url, (v) => { n.url = v.trim(); }, "input", "https://revistacontainer.com.ar/nota/…"));
-  d.append(campo("Título para la revista (vacío = el de la web)", "tit" + i, n.titulo, (v) => { n.titulo = v; }, "titulo", w.titulo_web || ""));
-  if (w.titulo_web) { const p = document.createElement("div"); p.className = "web"; p.textContent = "En la web: " + w.titulo_web; d.append(p); }
-  d.append(campo("Bajada para la revista (vacío = la de la web)", "baj" + i, n.bajada, (v) => { n.bajada = v; }, "textarea", w.bajada_web || ""));
-  if (w.bajada_origen && w.bajada_origen.startsWith("INICIO")) {
-    const p = document.createElement("div"); p.className = "aviso"; p.textContent = "Esta nota no tiene bajada en la web: si la dejás vacía sale en rojo con el comienzo de la nota."; d.append(p);
+  d.append(campoLink("Link de la nota en la web", n.url));
+  const w = deLaWeb(n), raw = S.web[n.url] || {};
+  if (S.leyendo.has(n.url)) {
+    const p = document.createElement("div"); p.className = "progreso";
+    p.innerHTML = '<div class="girador"></div><span class="ayuda">Trayendo título, bajada y firma de la web (tarda menos de un minuto)…</span>';
+    d.append(p);
+  } else if (raw.error) {
+    const p = document.createElement("div"); p.className = "aviso";
+    p.textContent = "No pude leer esta nota en la web (¿ya está publicada? ¿el link está bien?). Podés escribir título y bajada a mano, o reintentar cuando esté publicada. ";
+    const b = document.createElement("button"); b.type = "button"; b.className = "chico"; b.textContent = "Reintentar";
+    b.addEventListener("click", () => traerDeLaWeb([n.url], true)); p.append(b); d.append(p);
   }
-  const fila = document.createElement("div"); fila.className = "fila";
-  fila.append(campo("Firma (vacío = la de la web)", "aut" + i, n.autor, (v) => { n.autor = v || undefined; }, "input", w.autor_web || "sin firma"));
-  d.append(fila);
+  // Cada campo muestra el texto de la web; si se cambia, la revista usa el texto cambiado
+  const campoWeb = (etq, clave, tipo, aviso) => {
+    const base = w ? w[clave] : "";
+    const valor = n[clave] !== undefined ? n[clave] : base;
+    const l = campo(etq, clave.slice(0, 3) + i, valor, (v) => { n[clave] = v; actualizarNotaWeb(); }, tipo, w ? "" : "(se completa con la web)");
+    const nota = document.createElement("div"); nota.className = "web";
+    const volver = document.createElement("button"); volver.type = "button"; volver.className = "chico"; volver.textContent = "Volver al de la web";
+    volver.addEventListener("click", () => { delete n[clave]; l.querySelector(tipo === "input" ? "input" : "textarea").value = base; actualizarNotaWeb(); });
+    const actualizarNotaWeb = () => {
+      const cambiado = w && n[clave] !== undefined && limpio(n[clave]) !== limpio(base);
+      nota.hidden = !cambiado;
+      nota.textContent = (base ? "En la web: " + base : "En la web: (vacío)") + "  ";
+      if (cambiado) nota.append(volver);
+    };
+    actualizarNotaWeb();
+    d.append(l, nota);
+    if (aviso) d.append(aviso);
+  };
+  campoWeb("Título", "titulo", "titulo");
+  let avisoBajada = null;
+  if (w && !raw.bajada) {
+    avisoBajada = document.createElement("div"); avisoBajada.className = "aviso";
+    avisoBajada.textContent = "Esta nota no tiene bajada en la web: arriba va el comienzo de la nota. Si no la cambiás, sale en rojo como provisoria.";
+  }
+  campoWeb("Bajada", "bajada", "textarea", avisoBajada);
+  campoWeb("Firma (vacío = sin firma)", "autor", "input");
   const lf = document.createElement("label"); lf.textContent = "Foto (vacío = la de la web)";
   const af = document.createElement("div"); af.className = "archivo"; lf.append(af); d.append(lf);
   selectorArchivo(af, n.foto, (v) => { n.foto = v || undefined; }, { vacio: "(la de la web)" });
@@ -377,10 +480,11 @@ async function abrir(n) {
   selectorArchivo($("archGobierno"), gob, (v) => { S.ed.avisos.gobierno = v || undefined; }, { vacio: "(el del mes, sin cambios)" });
   $("avisoFinal").value = ed.avisos.final_id || "";
   $("secreTexto").value = secreATexto(ed.secretaria);
-  S.web = {};
-  await mostrarResultado(false);
+  await cargarWeb();
   pintarNotas();
   $("infoEdicion").textContent = "Edición " + n + " · " + S.archivos.length + " archivos en la carpeta.";
+  traerDeLaWeb(ed.notas.map((x) => x.url));
+  await mostrarResultado(false);
 }
 function secreATexto(s) {
   if (!s) return "";
@@ -452,8 +556,6 @@ async function mostrarResultado(recien, run) {
   } else if (recien) { msg(p, "Listo.", "ayuda"); }
   if (!txt) { est.innerHTML = '<p class="ayuda">Todavía no se armó esta edición desde el editor.</p>'; return; }
   const e = JSON.parse(txt); S.ultimoEstado = e;
-  (e.notas || []).forEach((n) => { S.web[n.url] = n; });
-  if (!recien) pintarNotas();
   est.innerHTML = "";
   const tit = document.createElement("p"); tit.className = "ayuda";
   tit.textContent = (e.modo === "final" ? "Versión final" : "Borrador") + " · " + e.pdf + " · " + e.peso_mb + " MB";
@@ -504,19 +606,30 @@ async function nueva() {
 
 // ---------- arranque ----------
 function pedirClave(si) { $("cajaClave").hidden = !si; }
-$("btnClave").addEventListener("click", () => { $("token").value = S.token; pedirClave($("cajaClave").hidden); });
+$("btnClave").addEventListener("click", () => { $("token").value = S.token; const abrirla = $("cajaClave").hidden; pedirClave(abrirla); if (abrirla) mostrarAcceso(true); else $("cajaAcceso").hidden = true; });
 $("btnGuardarClave").addEventListener("click", async () => { S.token = $("token").value.trim(); guardarClave(S.token); pedirClave(false); iniciar(); });
 $("selEdicion").addEventListener("change", (e) => abrir(e.target.value).catch((er) => msg($("progreso"), er.message, "error")));
 $("btnNueva").addEventListener("click", () => nueva().catch((er) => msg($("progreso"), er.message, "error")));
 $("btnAgregarNota").addEventListener("click", () => { S.ed.notas.push({ url: "" }); pintarNotas(); });
+$("btnReleer").addEventListener("click", () => traerDeLaWeb(S.ed.notas.map((x) => x.url), true));
+$("btnCopiarLink").addEventListener("click", async () => {
+  const inp = $("linkAcceso");
+  try { await navigator.clipboard.writeText(inp.value); } catch (e) { inp.select(); document.execCommand("copy"); }
+  $("btnCopiarLink").textContent = "Copiado ✓";
+});
+$("btnCerrarAcceso").addEventListener("click", () => { try { localStorage.setItem("container_link_guardado", "1"); } catch (e) {} $("cajaAcceso").hidden = true; });
 $("btnAgregarPend").addEventListener("click", () => { S.ed.notas.push({ pendiente: "Nota" }); pintarNotas(); });
 $("btnGuardar").addEventListener("click", async () => { bloquear(true); try { await guardar(); msg($("progreso"), "Guardado.", "ayuda"); } catch (e) { msg($("progreso"), e.message, "error"); } bloquear(false); });
 $("btnBorrador").addEventListener("click", () => armar("borrador"));
 $("btnFinal").addEventListener("click", () => armar("final"));
 
 async function iniciar() {
-  S.token = leerClave();
+  const delLink = claveDelLink();
+  if (delLink) guardarClave(delLink);
+  S.token = delLink || leerClave();
   if (!S.token) { pedirClave(true); return; }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  mostrarAcceso(false);
   try {
     await cargarEdiciones();
     if (S.ediciones.length) { $("selEdicion").value = S.ediciones[S.ediciones.length - 1]; await abrir($("selEdicion").value); }
