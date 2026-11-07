@@ -124,9 +124,10 @@ a { color: var(--rojo); }
 <main id="app">
   <section class="caja" id="cajaClave" hidden>
     <h2>Clave de GitHub</h2>
-    <p class="ayuda">El editor guarda la revista en el repo <b>ContainerAr/container-notas</b> y le pide a GitHub que la arme. Necesita una clave (token) con permiso sobre ese repo. Se guarda solo en este navegador.</p>
-    <label for="token">Token de GitHub<input type="password" id="token" autocomplete="off" placeholder="github_pat_…"></label>
-    <div class="fila"><button type="button" class="primario" id="btnGuardarClave">Guardar clave</button></div>
+    <p class="ayuda">Pegá la clave (el token «Editor revista» que empieza con <b>github_pat_</b>) <b>una sola vez</b>. Apenas la acepta, te muestro un link de acceso directo: guardalo y desde ahí entrás siempre, en la Mac y en el celu, sin volver a pegarla.</p>
+    <label for="token">Clave<input type="text" id="token" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></label>
+    <div id="errClave"></div>
+    <div class="fila"><button type="button" class="primario" id="btnGuardarClave">Entrar</button></div>
   </section>
 
   <section class="caja" id="cajaAcceso" hidden>
@@ -741,7 +742,16 @@ async function nueva() {
 // ---------- arranque ----------
 function pedirClave(si) { $("cajaClave").hidden = !si; }
 $("btnClave").addEventListener("click", () => { $("token").value = S.token; const abrirla = $("cajaClave").hidden; pedirClave(abrirla); if (abrirla) mostrarAcceso(true); else $("cajaAcceso").hidden = true; });
-$("btnGuardarClave").addEventListener("click", async () => { S.token = $("token").value.trim(); guardarClave(S.token); pedirClave(false); iniciar(); });
+$("btnGuardarClave").addEventListener("click", async () => {
+  const t = $("token").value.trim(); if (!t) return;
+  const b = $("btnGuardarClave"); b.disabled = true; b.textContent = "Probando la clave…"; msg($("errClave"), "");
+  const err = await probarClave(t);
+  b.disabled = false; b.textContent = "Entrar";
+  if (err) { msg($("errClave"), err, "error"); return; }
+  S.token = t; guardarClave(t);
+  try { localStorage.removeItem("container_link_guardado"); } catch (e) {}
+  pedirClave(false); iniciar(true);
+});
 $("selEdicion").addEventListener("change", (e) => abrir(e.target.value).catch((er) => msg($("progreso"), er.message, "error")));
 $("btnNueva").addEventListener("click", () => nueva().catch((er) => msg($("progreso"), er.message, "error")));
 $("btnAgregarNota").addEventListener("click", () => { S.ed.notas.push({ url: "" }); pintarNotas(); });
@@ -757,13 +767,39 @@ $("btnGuardar").addEventListener("click", async () => { bloquear(true); try { aw
 $("btnBorrador").addEventListener("click", () => armar("borrador"));
 $("btnFinal").addEventListener("click", () => armar("final"));
 
-async function iniciar() {
+// Prueba la clave contra el repo: devuelve el problema en criollo, o null si anda
+async function probarClave(t) {
+  try {
+    const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO, { cache: "no-store",
+      headers: { "Authorization": "Bearer " + t, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
+    if (r.ok) return null;
+    if (r.status === 401) return "GitHub dice que esa clave no existe o venció. Revisá que la hayas copiado completa (empieza con github_pat_) o creá una nueva.";
+    if (r.status === 403 || r.status === 404) return "La clave existe pero no tiene permiso sobre container-notas. Si al crearla quedó «pendiente de aprobación», aprobala en github.com/organizations/ContainerAr/settings/personal-access-token-requests. Si no, revisá que tenga acceso a container-notas con Contents y Actions en «Read and write».";
+    return "GitHub respondió " + r.status + ". Probá de nuevo en un rato.";
+  } catch (e) { return "No pude conectarme con GitHub. ¿Hay internet?"; }
+}
+function sinClave(error) {
+  S.token = ""; $("token").value = ""; pedirClave(true);
+  msg($("errClave"), error || "", "error");
+  ["cajaEdicion", "cajaTapa", "cajaNotas", "cajaAvisos", "cajaSecre", "cajaResultado", "cajaAcceso"].forEach((id) => { $(id).hidden = true; });
+  $("acciones").hidden = true;
+}
+function conClave() {
+  ["cajaEdicion", "cajaTapa", "cajaNotas", "cajaAvisos", "cajaSecre", "cajaResultado"].forEach((id) => { $(id).hidden = false; });
+  $("acciones").hidden = false;
+}
+async function iniciar(recienPegada) {
   const delLink = claveDelLink();
   if (delLink) guardarClave(delLink);
   S.token = delLink || leerClave();
-  if (!S.token) { pedirClave(true); return; }
+  if (!S.token) { sinClave(); return; }
+  if (!recienPegada) {
+    const err = await probarClave(S.token);
+    if (err && !/conectarme/.test(err)) { sinClave(err); return; }
+  }
+  conClave();
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-  mostrarAcceso(false);
+  mostrarAcceso(!!recienPegada);
   try {
     leerTexto("revista/generador/config/autores.yaml").then((t) => { try { S.autores = jsyaml.load(t) || {}; } catch (e) { S.autores = {}; } if (S.ed) pintarNotas(); }).catch(() => {});
     await cargarEdiciones();
