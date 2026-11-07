@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Roboto:wght@300;400;500;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="vista.js"></script>
 <style>
 /* Layout: una columna de trabajo (máx. 760px) con una barra de acciones fija abajo, pensada para el celular */
 :root {
@@ -44,7 +45,7 @@ header.barra {
 header.barra h1 { font: 600 20px/1 var(--display); letter-spacing: .02em; margin: 0; text-transform: uppercase; }
 header.barra h1 span { font-weight: 500; opacity: .85; }
 header.barra button { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.6); }
-main { max-width: 760px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; }
+main { max-width: 1080px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; }
 section.caja { background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
 section.caja > h2 { font: 600 17px/1.2 var(--display); text-transform: uppercase; letter-spacing: .04em; margin: 0; display: flex; align-items: center; gap: 10px; }
 section.caja > h2::before { content: ""; width: 6px; height: 18px; background: var(--rojo); display: inline-block; }
@@ -53,7 +54,7 @@ input[type=text], input[type=url], input[type=password], input[type=number], tex
   font: 400 15px/1.45 var(--texto); color: var(--tinta); background: var(--fondo);
   border: 1px solid var(--linea); border-radius: 8px; padding: 9px 11px; width: 100%;
 }
-textarea { resize: vertical; min-height: 84px; }
+textarea { resize: vertical; min-height: 84px; overflow: hidden; }
 textarea.titulo { min-height: 58px; font-family: var(--display); font-size: 18px; }
 input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--rojo); outline-offset: 1px; }
 .fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
@@ -98,6 +99,20 @@ button:disabled { opacity: .5; cursor: default; }
 @keyframes g { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .girador { animation: none; } }
 a { color: var(--rojo); }
+/* Vista previa: la página real, escalada */
+.hoja { position: relative; width: 100%; overflow: hidden; background: #fff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 6px 18px rgba(0,0,0,.10); cursor: zoom-in; }
+.hoja iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+.cuerpo { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.previa { display: grid; gap: 8px; align-content: start; width: min(240px, 70%); justify-self: center; }
+.campos { display: grid; gap: 10px; min-width: 0; align-content: start; }
+@media (min-width: 720px) {
+  .cuerpo { grid-template-columns: minmax(0, 1fr) 300px; }
+  .cuerpo > .previa { order: 2; width: 100%; position: sticky; top: 12px; }
+}
+.lectura { display: grid; gap: 4px; font-size: 13px; line-height: 1.35; }
+.lectura .ok { color: var(--ok); } .lectura .ojo { color: var(--prov); } .lectura .mal { color: var(--rojo); font-weight: 500; }
+#grande { position: fixed; inset: 0; background: rgba(10,8,8,.82); z-index: 20; display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+#grande .hoja { width: min(92vw, calc((100vh - 32px) * 1080 / 1920)); cursor: zoom-out; }
 </style>
 </head>
 <body>
@@ -136,6 +151,7 @@ a { color: var(--rojo); }
 
   <section class="caja" id="cajaTapa">
     <h2>Tapa</h2>
+    <div class="cuerpo"><div class="previa" id="previaTapa"></div><div class="campos" id="camposTapa">
     <div class="archivo" id="archTapa"></div>
     <label for="tapaTitulo">Título de tapa (cada renglón es una línea)<textarea id="tapaTitulo" class="titulo" rows="2"></textarea></label>
     <div class="fila">
@@ -143,7 +159,9 @@ a { color: var(--rojo); }
       <label for="tapaZoom">Zoom de la ilustración<input type="number" id="tapaZoom" step="0.05" min="1" max="1.6" placeholder="1"></label>
     </div>
     <label for="tapaBajada">Bajada de tapa<textarea id="tapaBajada" rows="4"></textarea></label>
-    <p class="ayuda">Zoom: 1 = como viene. 1.1 agranda la ilustración un 10% y baja un poco lo que está arriba.</p>
+    <label for="tapaY">Bajar la ilustración (pt, 0 = arriba de todo)<input type="number" id="tapaY" step="10" min="-400" max="400" placeholder="0"></label>
+    <p class="ayuda">Zoom: 1 = como viene; 1.1 la agranda un 10%. «Bajar» la corre hacia abajo para que el título no la tape (arriba se completa con la misma imagen desenfocada).</p>
+    </div></div>
   </section>
 
   <section class="caja" id="cajaNotas">
@@ -170,7 +188,9 @@ a { color: var(--rojo); }
 
   <section class="caja" id="cajaSecre">
     <h2>La secretaria y el cadete</h2>
-    <label for="secreTexto">Primera línea: título. Después, un diálogo por renglón empezando con guion. Va en negrita el que habla menos.<textarea id="secreTexto" rows="12"></textarea></label>
+    <div class="cuerpo"><div class="previa" id="previaSecre"></div><div class="campos">
+    <label for="secreTexto">Primera línea: título. Después, un diálogo por renglón empezando con guion. Va en negrita el que habla menos.<textarea id="secreTexto" rows="16"></textarea></label>
+    </div></div>
   </section>
 
   <section class="caja" id="cajaResultado">
@@ -181,6 +201,7 @@ a { color: var(--rojo); }
     <img id="mapa" alt="Mapa del borrador" hidden>
   </section>
 </main>
+<div id="grande" hidden></div>
 
 <div id="acciones">
   <button type="button" id="btnGuardar">Guardar</button>
@@ -338,10 +359,16 @@ function pintarNotas() {
   const cont = $("listaNotas"); cont.innerHTML = "";
   S.tarjetas = S.ed.notas.map((n, i) => tarjetaNota(n, i));
   cont.append(...S.tarjetas);
+  ajustarAltos(cont);
 }
+// Los cuadros de texto crecen con el texto, así se lee todo sin scroll
+function autoAlto(el) { if (!el.offsetParent) return; el.style.height = "auto"; el.style.height = (el.scrollHeight + 2) + "px"; }
+function ajustarAltos(raiz = document) { requestAnimationFrame(() => raiz.querySelectorAll("textarea").forEach(autoAlto)); }
+document.addEventListener("input", (e) => { if (e.target.tagName === "TEXTAREA") autoAlto(e.target); });
+window.addEventListener("resize", () => ajustarAltos());
 function repintarNota(i) {
   const vieja = S.tarjetas[i]; if (!vieja || !vieja.isConnected) return;
-  const nueva = tarjetaNota(S.ed.notas[i], i); vieja.replaceWith(nueva); S.tarjetas[i] = nueva;
+  const nueva = tarjetaNota(S.ed.notas[i], i); vieja.replaceWith(nueva); S.tarjetas[i] = nueva; ajustarAltos(nueva);
 }
 function repintarUrls(urls) { S.ed.notas.forEach((n, i) => { if (n.url && urls.includes(n.url)) repintarNota(i); }); }
 
@@ -379,6 +406,21 @@ function tarjetaNota(n, i) {
     mk("↓", () => { [S.ed.notas[i + 1], S.ed.notas[i]] = [S.ed.notas[i], S.ed.notas[i + 1]]; pintarNotas(); }, i === S.ed.notas.length - 1),
     mk("Quitar", () => { S.ed.notas.splice(i, 1); pintarNotas(); }));
   d.append(cab);
+  // Campos a la izquierda, la página como va a quedar a la derecha (en el celular, arriba)
+  const cuerpo = document.createElement("div"); cuerpo.className = "cuerpo";
+  const campos = document.createElement("div"); campos.className = "campos";
+  const previa = document.createElement("div"); previa.className = "previa";
+  const hoja = Vista.crearHoja(); const lectura = document.createElement("div"); lectura.className = "lectura";
+  previa.append(hoja, lectura); cuerpo.append(previa, campos); d.append(cuerpo);
+  hoja.title = "Tocá para ver grande";
+  hoja.addEventListener("click", () => verGrande(hoja.ultimoHtml));
+  const refrescar = async () => {
+    const html = (n.pendiente !== undefined && !n.url) ? Vista.notaPendiente(n.pendiente || "") : Vista.nota(await datosNota(n));
+    hoja.ultimoHtml = html;
+    hoja.mostrar(html, (res) => leerAjuste(lectura, res, n));
+  };
+  campos.addEventListener("input", refrescar); campos.addEventListener("change", refrescar);
+  const terminar = () => { refrescar(); return d; };
   const campo = (etq, id, valor, alCambiar, tipo = "input", ph = "") => {
     const l = document.createElement("label"); l.htmlFor = id; l.textContent = etq;
     const c = document.createElement(tipo === "input" ? "input" : "textarea");
@@ -402,21 +444,21 @@ function tarjetaNota(n, i) {
     return l;
   };
   if (n.pendiente !== undefined && !n.url) {
-    d.append(campo("Qué va acá (queda en gris hasta que llegue)", "pend" + i, n.pendiente, (v) => { n.pendiente = v; }));
-    d.append(campoLink("Link de la nota (cuando llegue)", ""));
-    return d;
+    campos.append(campo("Qué va acá (queda en gris hasta que llegue)", "pend" + i, n.pendiente, (v) => { n.pendiente = v; }));
+    campos.append(campoLink("Link de la nota (cuando llegue)", ""));
+    return terminar();
   }
-  d.append(campoLink("Link de la nota en la web", n.url));
+  campos.append(campoLink("Link de la nota en la web", n.url));
   const w = deLaWeb(n), raw = S.web[n.url] || {};
   if (S.leyendo.has(n.url)) {
     const p = document.createElement("div"); p.className = "progreso";
     p.innerHTML = '<div class="girador"></div><span class="ayuda">Trayendo título, bajada y firma de la web (tarda menos de un minuto)…</span>';
-    d.append(p);
+    campos.append(p);
   } else if (raw.error) {
     const p = document.createElement("div"); p.className = "aviso";
     p.textContent = "No pude leer esta nota en la web (¿ya está publicada? ¿el link está bien?). Podés escribir título y bajada a mano, o reintentar cuando esté publicada. ";
     const b = document.createElement("button"); b.type = "button"; b.className = "chico"; b.textContent = "Reintentar";
-    b.addEventListener("click", () => traerDeLaWeb([n.url], true)); p.append(b); d.append(p);
+    b.addEventListener("click", () => traerDeLaWeb([n.url], true)); p.append(b); campos.append(p);
   }
   // Cada campo muestra el texto de la web; si se cambia, la revista usa el texto cambiado
   const campoWeb = (etq, clave, tipo, aviso) => {
@@ -425,7 +467,7 @@ function tarjetaNota(n, i) {
     const l = campo(etq, clave.slice(0, 3) + i, valor, (v) => { n[clave] = v; actualizarNotaWeb(); }, tipo, w ? "" : "(se completa con la web)");
     const nota = document.createElement("div"); nota.className = "web";
     const volver = document.createElement("button"); volver.type = "button"; volver.className = "chico"; volver.textContent = "Volver al de la web";
-    volver.addEventListener("click", () => { delete n[clave]; l.querySelector(tipo === "input" ? "input" : "textarea").value = base; actualizarNotaWeb(); });
+    volver.addEventListener("click", () => { const el = l.querySelector(tipo === "input" ? "input" : "textarea"); el.value = base; el.dispatchEvent(new Event("input", { bubbles: true })); });
     const actualizarNotaWeb = () => {
       const cambiado = w && n[clave] !== undefined && limpio(n[clave]) !== limpio(base);
       nota.hidden = !cambiado;
@@ -433,8 +475,8 @@ function tarjetaNota(n, i) {
       if (cambiado) nota.append(volver);
     };
     actualizarNotaWeb();
-    d.append(l, nota);
-    if (aviso) d.append(aviso);
+    campos.append(l, nota);
+    if (aviso) campos.append(aviso);
   };
   campoWeb("Título", "titulo", "titulo");
   let avisoBajada = null;
@@ -445,14 +487,103 @@ function tarjetaNota(n, i) {
   campoWeb("Bajada", "bajada", "textarea", avisoBajada);
   campoWeb("Firma (vacío = sin firma)", "autor", "input");
   const lf = document.createElement("label"); lf.textContent = "Foto (vacío = la de la web)";
-  const af = document.createElement("div"); af.className = "archivo"; lf.append(af); d.append(lf);
-  selectorArchivo(af, n.foto, (v) => { n.foto = v || undefined; }, { vacio: "(la de la web)" });
+  const af = document.createElement("div"); af.className = "archivo"; lf.append(af); campos.append(lf);
+  selectorArchivo(af, n.foto, (v) => { n.foto = v || undefined; refrescar(); }, { vacio: "(la de la web)" });
   const ch = document.createElement("div"); ch.className = "fila";
   const casilla = (txt, clave) => { const l = document.createElement("label"); l.className = "check"; const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!n[clave]; c.addEventListener("change", () => { n[clave] = c.checked || undefined; }); l.append(c, " " + txt); return l; };
   ch.append(casilla("Título acortado (marcar para revisar)", "titulo_acortado"));
-  d.append(ch);
-  return d;
+  campos.append(ch);
+  return terminar();
 }
+
+// ---------- vista previa ----------
+const blobs = {};
+async function urlDeArchivo(ruta) {
+  if (!(ruta in blobs)) blobs[ruta] = leerBlob(ruta).then((b) => (b ? URL.createObjectURL(b) : null)).catch(() => null);
+  return blobs[ruta];
+}
+async function fotoAutor(archivo) {
+  return (await urlDeArchivo("revista/AUTORES/" + archivo)) || (await urlDeArchivo("revista/generador/autores/" + archivo));
+}
+// Lo mismo que hace el generador para decidir qué va en la página
+async function datosNota(n) {
+  const w = S.web[n.url] || {};
+  const titulo = limpio(n.titulo) ? n.titulo.replace(/\r/g, "").trim() : (w.titulo || n.titulo_web || "");
+  let baj = limpio(n.bajada), prov = false;
+  if (!baj || (!w.bajada && w.resumen && baj === limpio(w.resumen))) {
+    if (w.bajada) baj = w.bajada; else { baj = w.resumen || ""; prov = !n.bajada_ok; }
+  }
+  prov = prov || !!n.bajada_provisoria;
+  let autor = null;
+  const nombre = n.autor !== undefined ? limpio(n.autor) : (w.autor || "");
+  if (nombre) {
+    const conf = (S.autores || {})[nombre];
+    if (conf && conf.sin_firma) autor = null;
+    else if (conf) autor = { nombre, cargo: n.cargo !== undefined ? n.cargo : (conf.cargo || ""), foto: (conf.foto && await fotoAutor(conf.foto)) || w.autor_foto_url || "" };
+    else autor = { nombre, cargo: n.cargo !== undefined ? n.cargo : (w.cargo || ""), foto: w.autor_foto_url || "" };
+  }
+  const foto = n.foto ? await urlDeArchivo(BASE + "/" + S.n + "/" + n.foto) : (w.foto_url || "");
+  return { titulo, bajada: baj.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean), foto, autor,
+           titulo_provisorio: !!n.titulo_acortado && !n.titulo_ok, bajada_provisoria: prov, encuadre: n.encuadre };
+}
+function leerAjuste(cont, res, n) {
+  cont.innerHTML = "";
+  const linea = (txt, cls) => { const d = document.createElement("div"); d.className = cls; d.textContent = txt; cont.append(d); };
+  for (const a of res || []) {
+    if (a.id === "titulo") {
+      if (n && n.pendiente !== undefined && !n.url) continue;
+      if (!a.entra) linea("✗ El título no entra en 2 líneas: acortalo.", "mal");
+      else if (a.una_linea) linea("✓ Título en 1 línea (la foto se agranda para cubrir).", "ok");
+      else linea("✓ Título en " + a.lineas + " líneas.", "ok");
+    } else if (a.id === "titulo_tapa") {
+      if (!a.entra) linea("✗ El título de tapa no entra: acortalo.", "mal");
+      else if (a.final < a.original) linea("El título de tapa se achicó de " + a.original + " a " + a.final + " pt para entrar.", "ojo");
+    } else {
+      const nombre = { bajada: "La bajada", bajada_tapa: "La bajada de tapa", dialogo: "El diálogo", titulo_secre: "El título" }[a.id] || a.id;
+      if (!a.entra) linea("✗ " + nombre + " no entra ni achicando la letra: hay que acortarla.", "mal");
+      else if (a.final < a.original) linea(nombre + " se achicó de " + a.original + " a " + a.final + " pt para entrar.", "ojo");
+    }
+  }
+}
+function verGrande(html) {
+  if (!html) return;
+  const g = $("grande"); g.innerHTML = "";
+  const h = Vista.crearHoja(); g.append(h); g.hidden = false;
+  h.mostrar(html);
+}
+$("grande").addEventListener("click", () => { $("grande").hidden = true; $("grande").innerHTML = ""; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("grande").hidden) $("grande").click(); });
+
+const hojaTapa = Vista.crearHoja(), lecturaTapa = document.createElement("div");
+lecturaTapa.className = "lectura"; $("previaTapa").append(hojaTapa, lecturaTapa);
+hojaTapa.addEventListener("click", () => verGrande(hojaTapa.ultimoHtml));
+const medidas = {};
+function medir(url) {
+  if (!(url in medidas)) medidas[url] = new Promise((ok) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = () => ok([0, 0]); im.src = url; });
+  return medidas[url];
+}
+async function refrescarTapa() {
+  if (!S.ed) return;
+  const t = S.ed.tapa || {};
+  const img = t.imagen ? await urlDeArchivo(BASE + "/" + S.n + "/" + t.imagen) : null;
+  const [ancho, alto] = img ? await medir(img) : [0, 0];
+  const html = Vista.tapa({ titulo: $("tapaTitulo").value.replace(/\s+$/g, ""), volanta: $("tapaVolanta").value.trim(), bajada: $("tapaBajada").value.trim(),
+    imagen: img, ancho, alto, zoom: $("tapaZoom").value, y: $("tapaY").value, encuadre: t.encuadre, interlineado: t.interlineado });
+  hojaTapa.ultimoHtml = html;
+  hojaTapa.mostrar(html, (res) => leerAjuste(lecturaTapa, res));
+}
+$("camposTapa").addEventListener("input", refrescarTapa);
+
+const hojaSecre = Vista.crearHoja(), lecturaSecre = document.createElement("div");
+lecturaSecre.className = "lectura"; $("previaSecre").append(hojaSecre, lecturaSecre);
+hojaSecre.addEventListener("click", () => verGrande(hojaSecre.ultimoHtml));
+function refrescarSecre() {
+  const prev = (S.ed && S.ed.secretaria) || {};
+  const html = Vista.secretaria(Vista.leerSecretaria($("secreTexto").value, prev));
+  hojaSecre.ultimoHtml = html;
+  hojaSecre.mostrar(html, (res) => leerAjuste(lecturaSecre, res));
+}
+$("secreTexto").addEventListener("input", refrescarSecre);
 
 // ---------- cargar / armar el formulario ----------
 async function cargarEdiciones() {
@@ -472,8 +603,8 @@ async function abrir(n) {
   S.ed = ed;
   $("numero").value = ed.numero || n; $("fecha").value = ed.fecha || "";
   $("tapaTitulo").value = ed.tapa.titulo || ""; $("tapaVolanta").value = ed.tapa.volanta || "";
-  $("tapaBajada").value = ed.tapa.bajada || ""; $("tapaZoom").value = ed.tapa.zoom || "";
-  selectorArchivo($("archTapa"), ed.tapa.imagen, (v) => { S.ed.tapa.imagen = v || null; }, { vacio: "(ilustración pendiente)" });
+  $("tapaBajada").value = ed.tapa.bajada || ""; $("tapaZoom").value = ed.tapa.zoom || ""; $("tapaY").value = ed.tapa.y || "";
+  selectorArchivo($("archTapa"), ed.tapa.imagen, (v) => { S.ed.tapa.imagen = v || null; refrescarTapa(); }, { vacio: "(ilustración pendiente)" });
   const tos = typeof ed.avisos.toselli === "object" && ed.avisos.toselli ? ed.avisos.toselli.archivo : ed.avisos.toselli;
   selectorArchivo($("archToselli"), tos, (v) => { S.ed.avisos.toselli = v || undefined; }, { vacio: "(pendiente)" });
   const gob = typeof ed.avisos.gobierno === "object" && ed.avisos.gobierno ? ed.avisos.gobierno.archivo : ed.avisos.gobierno;
@@ -481,7 +612,7 @@ async function abrir(n) {
   $("avisoFinal").value = ed.avisos.final_id || "";
   $("secreTexto").value = secreATexto(ed.secretaria);
   await cargarWeb();
-  pintarNotas();
+  pintarNotas(); refrescarTapa(); refrescarSecre(); ajustarAltos();
   $("infoEdicion").textContent = "Edición " + n + " · " + S.archivos.length + " archivos en la carpeta.";
   traerDeLaWeb(ed.notas.map((x) => x.url));
   await mostrarResultado(false);
@@ -497,8 +628,11 @@ function leerFormulario() {
   ed.tapa.titulo = $("tapaTitulo").value.replace(/\s+$/g, ""); ed.tapa.volanta = $("tapaVolanta").value.trim();
   ed.tapa.bajada = $("tapaBajada").value.trim();
   const z = parseFloat($("tapaZoom").value); if (z && z !== 1) ed.tapa.zoom = z; else delete ed.tapa.zoom;
+  const ty = parseFloat($("tapaY").value); if (ty) ed.tapa.y = ty; else delete ed.tapa.y;
   const f = $("avisoFinal").value; if (f) ed.avisos.final_id = f; else delete ed.avisos.final_id;
-  const st = $("secreTexto").value.trim(); if (st) ed.secretaria = { texto: st + "\n" }; else delete ed.secretaria;
+  const st = $("secreTexto").value.trim(), prevS = ed.secretaria || {};
+  if (st) { ed.secretaria = { ...prevS, texto: st + "\n" }; delete ed.secretaria.archivo; delete ed.secretaria.pendiente; }
+  else if (!prevS.archivo) delete ed.secretaria;
   const out = { numero: ed.numero, fecha: ed.fecha };
   for (const [k, v] of Object.entries(ed)) if (!["numero", "fecha", "notas"].includes(k)) out[k] = v;
   if (!out.tapa.imagen) out.tapa.imagen = null;
@@ -631,6 +765,7 @@ async function iniciar() {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   mostrarAcceso(false);
   try {
+    leerTexto("revista/generador/config/autores.yaml").then((t) => { try { S.autores = jsyaml.load(t) || {}; } catch (e) { S.autores = {}; } if (S.ed) pintarNotas(); }).catch(() => {});
     await cargarEdiciones();
     if (S.ediciones.length) { $("selEdicion").value = S.ediciones[S.ediciones.length - 1]; await abrir($("selEdicion").value); }
   } catch (e) { msg($("progreso"), e.message, "error"); }
