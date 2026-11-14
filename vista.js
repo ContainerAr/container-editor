@@ -99,7 +99,7 @@ ${barras(1038, 10)}
     return doc("", `
 <div class="abs" style="left:0;top:0;width:1080pt;height:1059pt;overflow:hidden;background:#ececec;">${imagen}</div>
 <div class="abs" style="left:0;top:0;width:1080pt;height:493pt;background:linear-gradient(to bottom, ${grad});"></div>
-<div class="abs oswald oscuro" data-fit="titulo_tapa" data-min="70" data-lh="1.143" data-edit="titulo" data-ph="TÍTULO DE TAPA"
+<div class="abs oswald oscuro" data-fit="titulo_tapa" data-min="70" data-lh="1.143" data-maxlines="auto" data-edit="titulo" data-ph="TÍTULO DE TAPA"
      style="right:63pt;top:86pt;width:954pt;height:330pt;font-size:91pt;line-height:104pt;font-weight:700;color:#fff;text-align:right;overflow:hidden;">${lineas(t.titulo)}</div>
 <div class="abs" style="left:63pt;top:1190pt;width:954pt;height:2pt;background:${ROJO};"></div>
 <div class="abs oswald oscuro" data-edit="volanta" data-ph="VOLANTA" style="left:63pt;top:1128pt;height:62pt;min-width:200pt;padding:0 15pt;background:${ROJO};color:#fff;font-size:41pt;font-weight:600;line-height:62pt;text-transform:uppercase;white-space:nowrap;">${esc(t.volanta)}</div>
@@ -163,7 +163,11 @@ ${barras(1038, 10)}
       el.style.fontSize = el.dataset.fs0; el.style.lineHeight = el.dataset.lh0;
       const min = parseFloat(el.dataset.min || "30"), lhRatio = parseFloat(el.dataset.lh || "0");
       let size = parseFloat(w.getComputedStyle(el).fontSize) * 0.75;
-      const orig = size, entra = () => el.scrollHeight <= el.clientHeight + 1;
+      // data-maxlines="auto": respeta los cortes de línea escritos (título de tapa); si una línea no entra, se achica la letra
+      const nlin = () => { const r = d.createRange(); r.selectNodeContents(el);
+        return Math.round(r.getBoundingClientRect().height / parseFloat(w.getComputedStyle(el).lineHeight)); };
+      const maxl = el.dataset.maxlines === "auto" ? el.innerText.split("\n").filter((x) => x.trim()).length : parseInt(el.dataset.maxlines || "0");
+      const orig = size, entra = () => el.scrollHeight <= el.clientHeight + 1 && (!maxl || nlin() <= maxl);
       while (!entra() && size > min) { size -= 0.5; el.style.fontSize = size + "pt"; if (lhRatio) el.style.lineHeight = (size * lhRatio) + "pt"; }
       const lh = parseFloat(w.getComputedStyle(el).lineHeight) * 0.75;
       out.push({ id: el.dataset.fit, original: r2(orig), final: r2(size), entra: entra(), lineas: Math.round(el.scrollHeight * 0.75 / lh), vacio: !el.textContent.trim() });
